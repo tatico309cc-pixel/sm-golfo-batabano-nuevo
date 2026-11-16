@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b3554">
+<title>SM-GOLFO-BATABANÓ</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon-192.png">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<header><div class="brand">SM</div><div><h1>SM-GOLFO-BATABANÓ</h1><p>Sistema de apoyo a la seguridad de la navegación</p></div><span id="net" class="status">Comprobando conexión…</span></header>
+<nav id="tabs">
+<button data-tab="analisis" class="active">Análisis</button><button data-tab="registros">Registros</button><button data-tab="config">Configuración</button><button data-tab="ayuda">Ayuda</button>
+</nav>
+<main>
+<section id="analisis" class="pane active">
+<div class="intro"><h2>Evaluación hidrometeorológica</h2><p>Introduzca el pronóstico oficial por sectores y compare sus valores con los límites operacionales configurados por la Administración.</p></div>
+<form id="weatherForm">
+<div class="grid">
+<label>Fecha y hora del pronóstico<input name="fecha" type="datetime-local" required></label>
+<label>Sentido de navegación<select name="sentido"><option>Nueva Gerona → Batabanó</option><option>Batabanó → Nueva Gerona</option><option>Operación en Cayo Largo</option></select></label>
+<label>Sector de pronóstico<input name="sector" placeholder="Nombre oficial del sector" required></label>
+<label>Viento (nudos)<input name="viento" type="number" min="0" step="0.1" required></label>
+<label>Dirección del viento (°)<input name="dirViento" type="number" min="0" max="360" step="1" placeholder="0–360"></label>
+<label>Altura significativa de olas (m)<input name="olas" type="number" min="0" step="0.1" required></label>
+<label>Observaciones meteorológicas<textarea name="observaciones" rows="2"></textarea></label>
+</div>
+<h3>Límites operacionales aplicables</h3>
+<p class="notice">Los límites se dejan configurables para evitar introducir valores normativos no verificados. Introduzca los valores aprobados por la Administración y aplicables a esta operación.</p>
+<div class="grid">
+<label>Viento máximo autorizado (nudos)<input name="limViento" type="number" min="0" step="0.1" placeholder="Configurar límite"></label>
+<label>Altura máxima autorizada de olas (m)<input name="limOlas" type="number" min="0" step="0.1" placeholder="Configurar límite"></label>
+</div>
+<label>Condiciones adicionales / restricciones<textarea name="restricciones" rows="2" placeholder="Calado, puerto, estado de la ruta u otras restricciones"></textarea></label>
+<div class="actions"><button class="primary" type="submit">Evaluar y guardar</button><button type="button" id="clearForm">Limpiar</button></div>
+</form>
+<div id="result" class="result" aria-live="polite"><h3>Resultado de la evaluación</h3><p>Complete los datos del pronóstico para obtener una evaluación.</p></div>
+</section>
+<section id="registros" class="pane">
+<div class="section-head"><div><h2>Registros guardados</h2><p>Los registros se conservan en este dispositivo.</p></div><div class="actions"><button id="exportData">Exportar respaldo</button><label class="filebtn">Importar respaldo<input id="importData" type="file" accept="application/json"></label></div></div>
+<div id="records" class="records">No hay registros guardados.</div>
+</section>
+<section id="config" class="pane">
+<h2>Configuración operacional</h2>
+<p>Guarde los límites que la Administración haya establecido. Estos valores se aplicarán como referencia inicial al completar un análisis.</p>
+<form id="configForm">
+<div class="grid">
+<label>Viento máximo de referencia (nudos)<input name="limViento" type="number" min="0" step="0.1"></label>
+<label>Altura máxima de olas (m)<input name="limOlas" type="number" min="0" step="0.1"></label>
+</div>
+<label>Notas normativas<textarea name="normativa" rows="3" placeholder="DSIM Instrucción 5/2008 y disposiciones vigentes de la Administración"></textarea></label>
+<button class="primary" type="submit">Guardar configuración</button>
+</form>
+<div class="notice"><strong>Referencia de trabajo:</strong> DSIM Instrucción 5 de 2008, según la documentación indicada por el usuario como vigente. No se incorpora la Instrucción 1/2025.</div>
+<h3>Puertos y calados</h3>
+<p>Los valores de calado deben cargarse desde el Libro de Calados vigente de cada puerto; no se precargan cifras no verificadas.</p>
+<div class="grid">
+<label>Nueva Gerona — calado / observaciones<textarea id="calGerona" rows="2"></textarea></label>
+<label>Surgidero de Batabanó — calado / observaciones<textarea id="calBatabano" rows="2"></textarea></label>
+<label>Cayo Largo — calado / observaciones<textarea id="calCayo" rows="2"></textarea></label>
+</div>
+<button id="savePorts" class="primary">Guardar datos de puertos</button>
+</section>
+<section id="ayuda" class="pane">
+<h2>Uso y protección de los datos</h2>
+<ol><li>Introduzca el pronóstico emitido por el Centro de Pronóstico correspondiente.</li><li>Seleccione sentido de navegación y sector.</li><li>Introduzca los límites operacionales oficiales aplicables.</li><li>Revise la evaluación y genere el informe.</li><li>Exporte periódicamente un respaldo JSON desde «Registros».</li></ol>
+<div class="notice"><strong>Importante:</strong> esta aplicación es una herramienta de apoyo. No sustituye el pronóstico oficial, las órdenes de la Administración, la evaluación del Capitán ni las disposiciones normativas vigentes. Si falta un límite o dato crítico, la evaluación se considera incompleta y no autoriza la navegación.</div>
+<p><strong>Modo sin conexión:</strong> después de abrir la aplicación una vez con Internet, el navegador guardará los archivos locales. La primera instalación requiere conexión y una recarga.</p>
+</section>
+</main>
+<footer>SM-GOLFO-BATABANÓ · Versión inicial reconstruida · Datos almacenados localmente</footer>
+<script src="./app.js"></script>
+</body></html>

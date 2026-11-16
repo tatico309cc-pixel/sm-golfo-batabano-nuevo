@@ -1,0 +1,10 @@
+{
+  "name": "SM-GOLFO-BATABANÓ",
+  "short_name": "SM-GOLFO",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f5f8",
+  "theme_color": "#0b3554",
+  "lang": "es"
+}
