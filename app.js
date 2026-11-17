@@ -1,183 +1,30 @@
 const DB="sm-golfo-batabano-db", STORE="records", KEY="sm-golfo-settings";
 const $=s=>document.querySelector(s);
-let db=null;
-let dbReady=null;
-
-function openDB(){
-  if(dbReady) return dbReady;
-  dbReady=new Promise((resolve,reject)=>{
-    if(!("indexedDB" in window)){reject(new Error("Este navegador no permite almacenamiento IndexedDB."));return;}
-    const request=indexedDB.open(DB,1);
-    request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains(STORE))request.result.createObjectStore(STORE,{keyPath:"id",autoIncrement:true});};
-    request.onsuccess=()=>{db=request.result;db.onversionchange=()=>db.close();resolve(db);};
-    request.onerror=()=>reject(request.error||new Error("No se pudo abrir la base de datos."));
-    request.onblocked=()=>reject(new Error("La base de datos está bloqueada por otra pestaña. Cierre otras pestañas de esta aplicación y vuelva a intentarlo."));
-  });
-  return dbReady;
-}
-async function withStore(mode,action){
-  await openDB();
-  return new Promise((resolve,reject)=>{
-    const tx=db.transaction(STORE,mode), store=tx.objectStore(STORE);
-    let result;
-    try{result=action(store);}catch(err){reject(err);return;}
-    tx.oncomplete=()=>resolve(result);
-    tx.onerror=()=>reject(tx.error||new Error("Falló la operación de almacenamiento."));
-    tx.onabort=()=>reject(tx.error||new Error("La operación de almacenamiento fue cancelada."));
-  });
-}
-function allRecords(){
-  return new Promise(async(resolve,reject)=>{
-    try{
-      await openDB();
-      const request=db.transaction(STORE,"readonly").objectStore(STORE).getAll();
-      request.onsuccess=()=>resolve(request.result||[]);
-      request.onerror=()=>reject(request.error||new Error("No se pudieron leer los registros."));
-    }catch(err){reject(err);}
-  });
-}
-function saveRecord(item){
-  return new Promise(async(resolve,reject)=>{
-    try{
-      await openDB();
-      const request=db.transaction(STORE,"readwrite").objectStore(STORE).add(item);
-      request.onsuccess=()=>resolve(request.result);
-      request.onerror=()=>reject(request.error||new Error("No se pudo guardar el registro."));
-    }catch(err){reject(err);}
-  });
-}
+const ZONES=["A","B","C","D","F"];
+let db=null,dbReady=null;
+function openDB(){if(dbReady)return dbReady;dbReady=new Promise((resolve,reject)=>{if(!("indexedDB" in window)){reject(new Error("Este navegador no permite almacenamiento IndexedDB."));return;}const q=indexedDB.open(DB,1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains(STORE))q.result.createObjectStore(STORE,{keyPath:"id",autoIncrement:true});};q.onsuccess=()=>{db=q.result;db.onversionchange=()=>db.close();resolve(db);};q.onerror=()=>reject(q.error||new Error("No se pudo abrir la base de datos."));q.onblocked=()=>reject(new Error("La base de datos está bloqueada por otra pestaña."));});return dbReady;}
+function allRecords(){return new Promise(async(resolve,reject)=>{try{await openDB();const q=db.transaction(STORE,"readonly").objectStore(STORE).getAll();q.onsuccess=()=>resolve(q.result||[]);q.onerror=()=>reject(q.error); }catch(e){reject(e);}})}
+function saveRecord(x){return new Promise(async(resolve,reject)=>{try{await openDB();const q=db.transaction(STORE,"readwrite").objectStore(STORE).add(x);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error||new Error("No se pudo guardar."));}catch(e){reject(e);}})}
 function settings(){try{return JSON.parse(localStorage.getItem(KEY)||"{}")}catch{return {}}}
 function saveSettings(v){localStorage.setItem(KEY,JSON.stringify(v))}
-function showMessage(el,message,type="info"){
-  el.textContent=message;
-  el.className="notice "+(type==="error"?"error":type==="success"?"success":"");
-}
-function showTab(id){
-  document.querySelectorAll(".pane").forEach(x=>x.classList.toggle("active",x.id===id));
-  document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
-  if(id==="registros"){renderRecords().catch(err=>showMessage($("#storageStatus"),"No se pudieron cargar los registros: "+err.message,"error"));}
-}
+function showMessage(el,msg,type="info"){el.textContent=msg;el.className="notice "+(type==="error"?"error":type==="success"?"success":"");}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function showTab(id){document.querySelectorAll(".pane").forEach(x=>x.classList.toggle("active",x.id===id));document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));if(id==="registros")renderRecords().catch(e=>showMessage($("#storageStatus"),e.message,"error"));}
 document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
-
-function evaluate(v){
- const missing=[];
- if(v.limViento===""||v.limOlas==="")missing.push("límites operacionales");
- const wind=v.limViento!==""&&Number(v.viento)>Number(v.limViento);
- const wave=v.limOlas!==""&&Number(v.olas)>Number(v.limOlas);
- let status="INCOMPLETA", cls="warn", detail="No se puede emitir una conclusión operacional completa porque faltan límites de referencia.";
- if(!missing.length){
-   if(wind||wave){status="LÍMITE EXCEDIDO";cls="bad";detail="Se excede "+[wind?"el límite de viento":"",wave?"el límite de altura de olas":""].filter(Boolean).join(" y ")+". Recomendar la suspensión o restricción de la navegación y someter la decisión a la Administración."}
-   else{status="DENTRO DE LOS LÍMITES INTRODUCIDOS";cls="good";detail="Los valores introducidos no exceden los límites configurados. Esto no constituye por sí solo autorización para navegar; deben verificarse el resto de las condiciones y restricciones."}
- }
- return {status,cls,detail};
-}
-$("#weatherForm").addEventListener("submit",async e=>{
- e.preventDefault();
- const form=e.currentTarget;
- if(!form.reportValidity())return;
- const submit=form.querySelector('button[type="submit"]');
- submit.disabled=true;
- const f=Object.fromEntries(new FormData(form));
- const cfg=settings();
- if(!f.limViento)f.limViento=cfg.limViento??"";
- if(!f.limOlas)f.limOlas=cfg.limOlas??"";
- const ev=evaluate(f), item={...f,...ev,created:new Date().toISOString()};
- try{
-   const id=await saveRecord(item);
-   item.id=id;
-   renderResult(item);
-   $("#saveStatus").textContent="Evaluación guardada correctamente en este dispositivo. Número de registro: "+id+".";
-   $("#saveStatus").className="notice success";
- }catch(err){
-   $("#saveStatus").textContent="No se pudo guardar la evaluación: "+err.message;
-   $("#saveStatus").className="notice error";
- }finally{submit.disabled=false;}
-});
-function renderResult(x){
- const el=$("#result");el.className="result "+x.cls;
- el.innerHTML=`<h3>${esc(x.status)}</h3><p>${esc(x.detail)}</p><p><b>Sector:</b> ${esc(x.sector)} · <b>Viento:</b> ${esc(x.viento)} nudos · <b>Olas:</b> ${esc(x.olas)} m</p><p><b>Sentido:</b> ${esc(x.sentido)}</p><p><b>Fundamento de referencia:</b> DSIM Instrucción 5/2008 y límites operacionales introducidos por el usuario.</p><div class="actions"><button class="primary" id="docBtn">Generar informe imprimible</button></div>`;
- $("#docBtn").onclick=()=>printReport(x);
-}
-function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function printReport(x){
- const w=window.open("","_blank");
- if(!w){alert("Permita las ventanas emergentes para generar el informe.");return}
- w.document.write(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Informe SM-GOLFO-BATABANÓ</title><style>body{font:12pt Arial;margin:2cm;color:#111}h1{text-align:center;font-size:17pt}h2{font-size:13pt;margin-top:24px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #555;padding:8px;text-align:left}.firma{margin-top:65px;display:flex;justify-content:space-between}</style><h1>INFORME DE EVALUACIÓN DE SEGURIDAD HIDROMETEOROLÓGICA</h1><p><b>Fecha del pronóstico:</b> ${esc(x.fecha)}<br><b>Sentido:</b> ${esc(x.sentido)}<br><b>Sector:</b> ${esc(x.sector)}</p><h2>1. Datos meteorológicos</h2><table><tr><th>Parámetro</th><th>Pronóstico</th><th>Límite aplicado</th></tr><tr><td>Viento</td><td>${esc(x.viento)} nudos; dirección ${esc(x.dirViento||"No indicada")}°</td><td>${esc(x.limViento||"No configurado")} nudos</td></tr><tr><td>Altura de olas</td><td>${esc(x.olas)} m</td><td>${esc(x.limOlas||"No configurado")} m</td></tr></table><h2>2. Evaluación</h2><p><b>${esc(x.status)}</b></p><p>${esc(x.detail)}</p><h2>3. Restricciones y observaciones</h2><p>${esc(x.restricciones||"Sin observaciones consignadas")}</p><p>${esc(x.observaciones||"Sin observaciones meteorológicas adicionales")}</p><h2>4. Referencia normativa</h2><p>DSIM Instrucción 5 de 2008 y límites operacionales de la Administración introducidos para esta evaluación. Verificar vigencia, aplicabilidad y documentación oficial antes de adoptar decisiones.</p><h2>5. Decisión de la Administración</h2><p>________________________________________________________________________</p><p>________________________________________________________________________</p><div class="firma"><span>Elaborado por: __________________</span><span>Fecha: __________</span></div><script>window.onload=()=>window.print()<\/script></html>`);
- w.document.close();
-}
-async function renderRecords(){
- const arr=await allRecords();
- $("#records").innerHTML=arr.length?arr.sort((a,b)=>b.id-a.id).map(x=>`<article><h3>${esc(x.status)} — ${esc(x.sector)}</h3><p>${esc(x.fecha)} · ${esc(x.sentido)} · Viento ${esc(x.viento)} kn · Olas ${esc(x.olas)} m</p><button data-id="${x.id}" class="openrec">Ver informe</button></article>`).join(""):"No hay registros guardados.";
- document.querySelectorAll(".openrec").forEach(b=>b.onclick=async()=>{
-   try{const x=(await allRecords()).find(y=>y.id===Number(b.dataset.id));if(x){renderResult(x);showTab("analisis")}}
-   catch(err){showMessage($("#storageStatus"),"No se pudo abrir el registro: "+err.message,"error")}
- });
-}
-$("#clearForm").onclick=()=>{$("#weatherForm").reset();$("#saveStatus").textContent="";};
-$("#configForm").addEventListener("submit",e=>{
- e.preventDefault();
- try{saveSettings(Object.fromEntries(new FormData(e.target)));alert("Configuración guardada en este dispositivo.");}
- catch(err){alert("No se pudo guardar la configuración: "+err.message);}
-});
-$("#configForm").elements.limViento.value=settings().limViento??"";
-$("#configForm").elements.limOlas.value=settings().limOlas??"";
-$("#configForm").elements.normativa.value=settings().normativa??"DSIM Instrucción 5 de 2008";
-$("#savePorts").onclick=()=>{
- try{const s=settings();s.puertos={gerona:$("#calGerona").value,batabano:$("#calBatabano").value,cayo:$("#calCayo").value};saveSettings(s);alert("Datos de puertos guardados.");}
- catch(err){alert("No se pudieron guardar los datos: "+err.message);}
-};
-const ports=settings().puertos||{};
-$("#calGerona").value=ports.gerona||"";
-$("#calBatabano").value=ports.batabano||"";
-$("#calCayo").value=ports.cayo||"";
-
-$("#exportData").onclick=async()=>{
- try{
-   const payload={version:1,exported:new Date().toISOString(),settings:settings(),records:await allRecords()};
-   const a=document.createElement("a"),url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));
-   a.href=url;a.download="respaldo-SM-GOLFO-BATABANO.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
- }catch(err){showMessage($("#storageStatus"),"No se pudo crear el respaldo: "+err.message,"error");}
-};
-$("#importData").onchange=async e=>{
- const f=e.target.files[0];if(!f)return;
- try{
-   const p=JSON.parse(await f.text());
-   if(!Array.isArray(p.records))throw Error("Formato no válido");
-   if(!confirm("La importación añadirá los registros al dispositivo. ¿Continuar?"))return;
-   if(p.settings)saveSettings(p.settings);
-   for(const r of p.records){const {id,...rest}=r;await saveRecord(rest);}
-   alert("Respaldo importado.");await renderRecords();
- }catch(err){alert("No se pudo importar: "+err.message);}
- e.target.value="";
-};
-
-// Prueba aislada: escribe, lee y elimina inmediatamente un registro técnico temporal.
-$("#testStorage").onclick=async()=>{
- const button=$("#testStorage");button.disabled=true;
- const status=$("#storageStatus");showMessage(status,"Ejecutando prueba de almacenamiento…");
- let testId=null;
- try{
-   await openDB();
-   const marker="SM-TEST-"+Date.now()+"-"+Math.random().toString(16).slice(2);
-   testId=await saveRecord({tipo:"PRUEBA_TECNICA_TEMPORAL",marker,created:new Date().toISOString()});
-   const read=await new Promise((resolve,reject)=>{
-     const req=db.transaction(STORE,"readonly").objectStore(STORE).get(testId);
-     req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
-   });
-   if(!read||read.marker!==marker)throw new Error("El dato escrito no coincide con el dato recuperado.");
-   await new Promise((resolve,reject)=>{
-     const req=db.transaction(STORE,"readwrite").objectStore(STORE).delete(testId);
-     req.onsuccess=()=>resolve();req.onerror=()=>reject(req.error);
-   });
-   testId=null;
-   showMessage(status,"Prueba satisfactoria: el almacenamiento escribió, recuperó y eliminó el dato temporal. No se conservó ningún registro de prueba.","success");
- }catch(err){
-   if(testId!==null){try{await new Promise(resolve=>{const req=db.transaction(STORE,"readwrite").objectStore(STORE).delete(testId);req.onsuccess=req.onerror=()=>resolve();});}catch{}}
-   showMessage(status,"Prueba de almacenamiento fallida: "+err.message,"error");
- }finally{button.disabled=false;}
-};
-
-function net(){const on=navigator.onLine;$("#net").textContent=on?"Con conexión":"Sin conexión";$("#net").style.color=on?"#d8e9f4":"#ffd28a";}
-addEventListener("online",net);addEventListener("offline",net);net();
-openDB().then(()=>showMessage($("#storageStatus"),"Almacenamiento local disponible.","success")).catch(err=>showMessage($("#storageStatus"),"Error al iniciar el almacenamiento: "+err.message,"error"));
-if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js").catch(e=>console.error("SW",e));}
+function zoneTemplate(z){return `<section class="zone-card" data-zone="${z}"><h3>Zona ${z}</h3><div class="grid"><label>Velocidad del viento (nudos)<input name="${z}_viento" type="number" min="0" step="0.1" required></label><label>Dirección del viento (0–360°)<input name="${z}_direccion" type="number" min="0" max="360" step="1" placeholder="No indicada"></label><label>Altura significativa de olas (m)<input name="${z}_olas" type="number" min="0" step="0.1" required></label><label>Límite de viento aplicable (nudos)<input name="${z}_limViento" type="number" min="0" step="0.1" placeholder="Requerido para evaluar"></label><label>Límite de olas aplicable (m)<input name="${z}_limOlas" type="number" min="0" step="0.1" placeholder="Requerido para evaluar"></label></div><label>Observaciones de la zona ${z}<textarea name="${z}_observaciones" rows="2"></textarea></label></section>`;}
+function updateZoneForms(){const selected=[...document.querySelectorAll('input[name="zonas"]:checked')].map(x=>x.value);const root=$("#zoneForms");root.innerHTML=selected.length?selected.map(zoneTemplate).join(""):'<p class="muted">Seleccione una o varias zonas para introducir sus datos meteorológicos.</p>';}
+document.querySelectorAll('input[name="zonas"]').forEach(x=>x.addEventListener("change",updateZoneForms));
+function assessZone(z){const missing=[];if(z.viento==="")missing.push("viento");if(z.olas==="")missing.push("oleaje");if(z.limViento==="")missing.push("límite de viento");if(z.limOlas==="")missing.push("límite de olas");if(missing.length)return {status:"INCOMPLETA",cls:"warn",detail:"Faltan datos para evaluar: "+missing.join(", ")};const wind=Number(z.viento)>Number(z.limViento),wave=Number(z.olas)>Number(z.limOlas);if(wind||wave)return {status:"LÍMITE EXCEDIDO",cls:"bad",detail:"Se supera "+[wind?"el límite de viento":"",wave?"el límite de altura de olas":""].filter(Boolean).join(" y ")};return {status:"SIN SUPERACIÓN DE LOS LÍMITES INTRODUCIDOS",cls:"good",detail:"Los valores registrados no superan los límites introducidos para esta zona. Esto no constituye autorización para navegar."};}
+function assessWhole(zones){if(zones.some(z=>z.status==="LÍMITE EXCEDIDO"))return {status:"ATENCIÓN: LÍMITE EXCEDIDO EN UNA O MÁS ZONAS",cls:"bad"};if(zones.some(z=>z.status==="INCOMPLETA"))return {status:"EVALUACIÓN INCOMPLETA",cls:"warn"};return {status:"SIN SUPERACIONES REGISTRADAS EN LAS ZONAS EVALUADAS",cls:"good"};}
+$("#weatherForm").addEventListener("submit",async e=>{e.preventDefault();const form=e.currentTarget;if(!form.reportValidity())return;const selected=[...document.querySelectorAll('input[name="zonas"]:checked')].map(x=>x.value);if(!selected.length){showMessage($("#saveStatus"),"Seleccione al menos una zona meteorológica.","error");return;}const zones=selected.map(code=>{const val=n=>form.elements[`${code}_${n}`]?.value??"";return {sector:code,viento:val("viento"),direccion:val("direccion"),olas:val("olas"),limViento:val("limViento"),limOlas:val("limOlas"),observaciones:val("observaciones"),...assessZone({viento:val("viento"),olas:val("olas"),limViento:val("limViento"),limOlas:val("limOlas")})};});const whole=assessWhole(zones);const item={tipo:"evaluacion_multizona",fecha:form.elements.fecha.value,validezDesde:form.elements.validezDesde.value,validezHasta:form.elements.validezHasta.value,sentido:form.elements.sentido.value,zones,observacionesGenerales:form.elements.observacionesGenerales.value,...whole,created:new Date().toISOString()};const btn=form.querySelector('button[type="submit"]');btn.disabled=true;try{item.id=await saveRecord(item);renderResult(item);showMessage($("#saveStatus"),`Evaluación guardada en este dispositivo. Registro ${item.id}.`,"success");}catch(err){showMessage($("#saveStatus"),"No se pudo guardar: "+err.message,"error");}finally{btn.disabled=false;}});
+function renderResult(x){const el=$("#result");el.className="result "+(x.cls||"warn");if(Array.isArray(x.zones)){el.innerHTML=`<h3>${esc(x.status)}</h3><p><b>Sentido:</b> ${esc(x.sentido)} · <b>Pronóstico:</b> ${esc(x.fecha)}</p><div class="table-wrap"><table><thead><tr><th>Zona</th><th>Viento</th><th>Dirección</th><th>Olas</th><th>Resultado</th></tr></thead><tbody>${x.zones.map(z=>`<tr><td>${esc(z.sector)}</td><td>${esc(z.viento)} kn</td><td>${z.direccion?esc(z.direccion)+"°":"—"}</td><td>${esc(z.olas)} m</td><td>${esc(z.status)}</td></tr>`).join("")}</tbody></table></div><p>${esc(x.observacionesGenerales||"")}</p><div class="actions"><button class="primary" id="docBtn">Generar informe imprimible</button></div>`;}else{el.innerHTML=`<h3>${esc(x.status)}</h3><p>Registro histórico de la versión anterior. Sector: ${esc(x.sector||"No indicado")}; viento: ${esc(x.viento||"—")} kn; olas: ${esc(x.olas||"—")} m.</p>`;}const b=$("#docBtn");if(b)b.onclick=()=>printReport(x);}
+function printReport(x){const w=window.open("","_blank");if(!w){alert("Permita las ventanas emergentes para generar el informe.");return;}const rows=(x.zones||[]).map(z=>`<tr><td>${esc(z.sector)}</td><td>${esc(z.viento)} kn</td><td>${z.direccion?esc(z.direccion)+"°":"No indicada"}</td><td>${esc(z.olas)} m</td><td>${esc(z.limViento)} kn</td><td>${esc(z.limOlas)} m</td><td>${esc(z.status)} — ${esc(z.detail)}</td></tr>`).join("");w.document.write(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Informe SM-GOLFO-BATABANÓ</title><style>body{font:12pt Arial;margin:2cm;color:#111}h1{text-align:center;font-size:17pt}table{border-collapse:collapse;width:100%;font-size:9pt}td,th{border:1px solid #555;padding:6px;text-align:left}h2{margin-top:24px}</style><h1>INFORME DE EVALUACIÓN HIDROMETEOROLÓGICA</h1><p><b>Fecha de emisión:</b> ${esc(x.fecha)}<br><b>Validez:</b> ${esc(x.validezDesde||"No indicada")} a ${esc(x.validezHasta||"No indicada")}<br><b>Sentido:</b> ${esc(x.sentido)}</p><h2>Evaluación por zonas</h2><table><tr><th>Zona</th><th>Viento</th><th>Dirección</th><th>Olas</th><th>Límite viento</th><th>Límite olas</th><th>Resultado</th></tr>${rows}</table><h2>Conclusión conjunta</h2><p><b>${esc(x.status)}</b></p><p>${esc(x.observacionesGenerales||"Sin observaciones generales")}</p><p><i>La sectorización representa zonas aproximadas de referencia. Esta evaluación es apoyo técnico y no sustituye el pronóstico oficial ni la decisión de la autoridad marítima competente.</i></p><p style="margin-top:60px">Elaborado por: ________________________________ &nbsp;&nbsp; Fecha: ______________</p><script>window.onload=()=>window.print()<\/script></html>`);w.document.close();}
+async function renderRecords(){const arr=await allRecords();$("#records").innerHTML=arr.length?arr.sort((a,b)=>b.id-a.id).map(x=>{const desc=Array.isArray(x.zones)?x.zones.map(z=>z.sector).join(", "):(x.sector||"Registro anterior");return `<article><h3>${esc(x.status)} — ${esc(desc)}</h3><p>${esc(x.fecha)} · ${esc(x.sentido||"")}</p><button data-id="${x.id}" class="openrec">Ver registro</button></article>`;}).join(""):"No hay registros guardados.";document.querySelectorAll(".openrec").forEach(b=>b.onclick=async()=>{const x=(await allRecords()).find(y=>y.id===Number(b.dataset.id));if(x){renderResult(x);showTab("analisis");}});}
+$("#clearForm").onclick=()=>{$("#weatherForm").reset();updateZoneForms();$("#saveStatus").textContent="";};
+$("#configForm").addEventListener("submit",e=>{e.preventDefault();try{saveSettings(Object.fromEntries(new FormData(e.target)));alert("Configuración guardada.");}catch(err){alert(err.message);}});
+$("#configForm").elements.limViento.value=settings().limViento??"";$("#configForm").elements.limOlas.value=settings().limOlas??"";$("#configForm").elements.normativa.value=settings().normativa??"DSIM Instrucción 5 de 2008";
+$("#savePorts").onclick=()=>{try{const s=settings();s.puertos={gerona:$("#calGerona").value,batabano:$("#calBatabano").value,cayo:$("#calCayo").value};saveSettings(s);alert("Datos de puertos guardados.");}catch(e){alert(e.message);}};const ports=settings().puertos||{};$("#calGerona").value=ports.gerona||"";$("#calBatabano").value=ports.batabano||"";$("#calCayo").value=ports.cayo||"";
+$("#exportData").onclick=async()=>{try{const payload={version:2,exported:new Date().toISOString(),settings:settings(),records:await allRecords()};const a=document.createElement("a"),url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));a.href=url;a.download="respaldo-SM-GOLFO-BATABANO.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){showMessage($("#storageStatus"),e.message,"error");}};
+$("#importData").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const p=JSON.parse(await f.text());if(!Array.isArray(p.records))throw Error("Formato no válido");if(!confirm("La importación añadirá los registros al dispositivo y puede generar duplicados. ¿Continuar?"))return;if(p.settings)saveSettings(p.settings);for(const r of p.records){const {id,...rest}=r;await saveRecord(rest);}alert("Respaldo importado.");await renderRecords();}catch(err){alert("No se pudo importar: "+err.message);}e.target.value="";};
+$("#testStorage").onclick=async()=>{const b=$("#testStorage"),status=$("#storageStatus");b.disabled=true;let id=null;try{await openDB();const marker="SM-TEST-"+Date.now();id=await saveRecord({tipo:"PRUEBA_TECNICA_TEMPORAL",marker});const read=await new Promise((resolve,reject)=>{const q=db.transaction(STORE,"readonly").objectStore(STORE).get(id);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);});if(!read||read.marker!==marker)throw Error("El dato recuperado no coincide.");await new Promise((resolve,reject)=>{const q=db.transaction(STORE,"readwrite").objectStore(STORE).delete(id);q.onsuccess=resolve;q.onerror=()=>reject(q.error);});id=null;showMessage(status,"Prueba satisfactoria: escribió, recuperó y eliminó el dato temporal.","success");}catch(e){if(id!==null)try{await new Promise(r=>{const q=db.transaction(STORE,"readwrite").objectStore(STORE).delete(id);q.onsuccess=q.onerror=r;});}catch{}showMessage(status,"Prueba fallida: "+e.message,"error");}finally{b.disabled=false;}};
+function net(){const on=navigator.onLine;$("#net").textContent=on?"Con conexión":"Sin conexión";}addEventListener("online",net);addEventListener("offline",net);net();openDB().then(()=>showMessage($("#storageStatus"),"Almacenamiento local disponible.","success")).catch(e=>showMessage($("#storageStatus"),e.message,"error"));if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(console.error);

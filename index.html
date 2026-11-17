@@ -19,22 +19,23 @@
 <div class="intro"><h2>Evaluación hidrometeorológica</h2><p>Introduzca el pronóstico oficial por sectores y compare sus valores con los límites operacionales configurados por la Administración.</p></div>
 <form id="weatherForm">
 <div class="grid">
-<label>Fecha y hora del pronóstico<input name="fecha" type="datetime-local" required></label>
+<label>Fecha y hora de emisión del pronóstico<input name="fecha" type="datetime-local" required></label>
+<label>Inicio de validez<input name="validezDesde" type="datetime-local"></label>
+<label>Fin de validez<input name="validezHasta" type="datetime-local"></label>
 <label>Sentido de navegación<select name="sentido"><option>Nueva Gerona → Batabanó</option><option>Batabanó → Nueva Gerona</option><option>Operación en Cayo Largo</option></select></label>
-<label>Sector de pronóstico<input name="sector" placeholder="Nombre oficial del sector" required></label>
-<label>Viento (nudos)<input name="viento" type="number" min="0" step="0.1" required></label>
-<label>Dirección del viento (°) — opcional<input name="dirViento" type="number" min="0" max="360" step="1" placeholder="0–360"></label>
-<label>Altura significativa de olas (m)<input name="olas" type="number" min="0" step="0.1" required></label>
-<label>Observaciones meteorológicas<textarea name="observaciones" rows="2"></textarea></label>
 </div>
-<h3>Límites operacionales aplicables</h3>
-<p class="notice">Los límites se dejan configurables para evitar introducir valores normativos no verificados. Introduzca los valores aprobados por la Administración y aplicables a esta operación.</p>
-<div class="grid">
-<label>Viento máximo autorizado (nudos)<input name="limViento" type="number" min="0" step="0.1" placeholder="Configurar límite"></label>
-<label>Altura máxima autorizada de olas (m)<input name="limOlas" type="number" min="0" step="0.1" placeholder="Configurar límite"></label>
+<h3>Zonas meteorológicas comprendidas</h3>
+<p class="notice">Seleccione todas las zonas que atraviesa la ruta o que intervienen en la operación. La sectorización es aproximada y representa áreas de referencia; no constituye una delimitación por coordenadas.</p>
+<div class="zone-select" id="zoneSelect">
+<label><input type="checkbox" name="zonas" value="A"> Zona A</label>
+<label><input type="checkbox" name="zonas" value="B"> Zona B</label>
+<label><input type="checkbox" name="zonas" value="C"> Zona C</label>
+<label><input type="checkbox" name="zonas" value="D"> Zona D</label>
+<label><input type="checkbox" name="zonas" value="F"> Zona F</label>
 </div>
-<label>Condiciones adicionales / restricciones<textarea name="restricciones" rows="2" placeholder="Calado, puerto, estado de la ruta u otras restricciones"></textarea></label>
-<p class="notice">Campos obligatorios: fecha y hora, sector, viento y altura significativa de olas. La dirección del viento es opcional.</p>
+<div id="zoneForms" class="zone-forms"><p class="muted">Seleccione una o varias zonas para introducir sus datos meteorológicos.</p></div>
+<h3>Observaciones generales de la travesía</h3>
+<label>Restricciones, condiciones adicionales y observaciones<textarea name="observacionesGenerales" rows="3"></textarea></label>
 <div class="actions"><button class="primary" type="submit">Evaluar y guardar</button><button type="button" id="clearForm">Limpiar</button></div>
 <p id="saveStatus" class="notice" aria-live="polite"></p>
 </form>
@@ -69,7 +70,7 @@
 </section>
 <section id="ayuda" class="pane">
 <h2>Uso y protección de los datos</h2>
-<ol><li>Introduzca el pronóstico emitido por el Centro de Pronóstico correspondiente.</li><li>Seleccione sentido de navegación y sector.</li><li>Introduzca los límites operacionales oficiales aplicables.</li><li>Revise la evaluación y genere el informe.</li><li>Exporte periódicamente un respaldo JSON desde «Registros».</li></ol>
+<ol><li>Introduzca el pronóstico emitido por el Centro de Pronóstico correspondiente.</li><li>Seleccione una o varias zonas meteorológicas (A, B, C, D y F).</li><li>Introduzca viento, dirección, oleaje y límites aplicables en cada zona.</li><li>Revise la evaluación y genere el informe.</li><li>Exporte periódicamente un respaldo JSON desde «Registros».</li></ol>
 <div class="notice"><strong>Importante:</strong> esta aplicación es una herramienta de apoyo. No sustituye el pronóstico oficial, las órdenes de la Administración, la evaluación del Capitán ni las disposiciones normativas vigentes. Si falta un límite o dato crítico, la evaluación se considera incompleta y no autoriza la navegación.</div>
 <p><strong>Modo sin conexión:</strong> después de abrir la aplicación una vez con Internet, el navegador guardará los archivos locales. La primera instalación requiere conexión y una recarga.</p>
 </section>
