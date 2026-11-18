@@ -3,7 +3,7 @@ SM-GOLFO-BATABANO - REVISION 2 / FORMULARIO MULTIZONA
 CONTENIDO
 - index.html: interfaz y formulario de evaluación por zonas.
 - styles.css: presentación adaptable a teléfonos y computadoras.
-- app.js: evaluación individual por zona, conclusión conjunta y almacenamiento local.
+- app.js: evaluación individual por zona, conclusión conjunta y almacenamiento local. La evaluación y el guardado son operaciones separadas.
 - sw.js: caché de la aplicación para funcionamiento sin conexión.
 - manifest.webmanifest: configuración de instalación PWA.
 - sectorizacion.jpg: imagen de referencia aportada por el usuario.
@@ -15,6 +15,10 @@ CAMBIOS DE ESTA REVISIÓN
 - Los datos de viento, dirección, oleaje, límites y observaciones se introducen por separado para cada zona.
 - Añade fecha/hora de emisión y período de validez del pronóstico.
 - Presenta resultados por zona y una conclusión conjunta.
+- Separa los botones «Evaluar» y «Guardar evaluación»: evaluar no escribe en la base de datos.
+- Solo permite guardar cuando todas las zonas tienen los datos y límites necesarios.
+- Si se modifica cualquier dato después de evaluar, exige volver a evaluar antes de guardar.
+- Actualiza la versión de caché del Service Worker para publicar los nuevos archivos.
 - Conserva IndexedDB y el nombre de la base de datos existentes para mantener los registros guardados en este dispositivo.
 - Mantiene compatibilidad de lectura y visualización de registros de la versión anterior.
 - Incluye el mapa de referencia en la caché offline.
@@ -22,7 +26,7 @@ CAMBIOS DE ESTA REVISIÓN
 IMPORTANTE
 La sectorización es aproximada y representa zonas de referencia, no polígonos ni límites geográficos definidos por coordenadas. Los límites operacionales deben introducirse por zona conforme a los criterios oficiales aplicables al buque y a la operación. No se precargan valores normativos.
 
-Esta revisión todavía debe probarse en el navegador antes de sustituir los archivos publicados. No elimina los datos almacenados localmente, pero se recomienda exportar un respaldo JSON antes de actualizar.
+Esta revisión debe probarse en el navegador antes de sustituir los archivos publicados. La evaluación no guarda datos; el guardado requiere una acción independiente del usuario. No elimina los datos almacenados localmente, pero se recomienda exportar un respaldo JSON antes de actualizar.
 
 INSTALACIÓN EN GITHUB PAGES
 1. Descargue y extraiga el ZIP.

@@ -1,4 +1,4 @@
-const CACHE="sm-golfo-shell-v3";
+const CACHE="sm-golfo-shell-v4";
 const PREFIX="sm-golfo-shell-";
 const CORE=["./","./index.html","./styles.css","./app.js","./manifest.webmanifest","./icon-192.png","./icon-512.png","./sectorizacion.jpg"];
 self.addEventListener("install",e=>{
